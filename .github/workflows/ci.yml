@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build and unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+      - run: dotnet build BugHunter.sln -c Release
+      - run: dotnet test tests/BugHunter.Tests -c Release --no-build --logger "trx;LogFileName=results.trx"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: src/web/package-lock.json
+      - run: npm ci --prefix src/web
+      - run: npx --prefix src/web tsc --noEmit -p src/web
+      - run: npm --prefix src/web run lint
+
+  smoke-hunt:
+    # Ground truth on every change: a real browser hunt against the demo shop, no AI, no API keys.
+    name: Smoke hunt (no AI)
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      ASPNETCORE_ENVIRONMENT: Development
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install the browser worker and Chromium
+        run: |
+          npm ci --prefix src/browser-worker
+          npx --prefix src/browser-worker playwright install --with-deps chromium
+      - name: Throwaway local keys (nothing is stored in the repository)
+        run: |
+          echo "DEMO_SHOP_KEY=$(openssl rand -hex 18)" >> "$GITHUB_ENV"
+          echo "SIM_TOKEN=$(openssl rand -hex 18)" >> "$GITHUB_ENV"
+      - name: Start the demo shop and the API
+        run: |
+          dotnet run --project src/DemoShop > demo-shop.log 2>&1 &
+          dotnet run --project src/BugHunter.Api > api.log 2>&1 &
+          for i in $(seq 1 90); do
+            if curl -fs http://localhost:5280/readyz > /dev/null && curl -fs http://localhost:5290/ > /dev/null; then echo ready; exit 0; fi
+            sleep 2
+          done
+          echo "services did not become ready"; tail -50 api.log; exit 1
+      - run: node scripts/smoke-hunt.mjs
+        env:
+          STEPS: "80"
+          MIN_DETECTED: "5"
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-hunt
+          path: |
+            artifacts/
+            api.log
+            demo-shop.log

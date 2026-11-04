@@ -1,0 +1,36 @@
+{
+  "project": "HOTEL",
+  "note": "The app's backlog as the product team wrote it. Seeds the Jira simulator; a test keeps it equal to the stories the demo app serves.",
+  "stories": [
+    {
+      "key": "HOTEL-1",
+      "title": "Valid stay dates",
+      "criteria": "Check-in is today or later.\nCheck-out is after check-in; a stay is at least one night."
+    },
+    {
+      "key": "HOTEL-2",
+      "title": "Room capacity",
+      "criteria": "The number of guests is between 1 and the room's maximum."
+    },
+    {
+      "key": "HOTEL-3",
+      "title": "Correct price",
+      "criteria": "The total is the number of nights times the nightly rate."
+    },
+    {
+      "key": "HOTEL-4",
+      "title": "Guests can cancel before check-in",
+      "criteria": "A guest can cancel their own booking while it is confirmed.\nA booking that is checked in or checked out cannot be cancelled.\nA cancelled booking shows as Cancelled."
+    },
+    {
+      "key": "HOTEL-5",
+      "title": "Front desk",
+      "criteria": "Only signed-in front-desk staff can see all bookings and check guests in or out.\nA guest is checked in before being checked out."
+    },
+    {
+      "key": "HOTEL-6",
+      "title": "The quoted rate is the rate charged",
+      "criteria": "The nightly rate on a booking is the rate shown for that room in the room list."
+    }
+  ]
+}

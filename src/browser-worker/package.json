@@ -1,0 +1,15 @@
+{
+  "name": "bug-hunter-browser-worker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Isolated Playwright browser worker that the Bug Hunter drives over HTTP (open, snapshot, act, close).",
+  "type": "module",
+  "main": "server.mjs",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "playwright": "1.64.0"
+  }
+}

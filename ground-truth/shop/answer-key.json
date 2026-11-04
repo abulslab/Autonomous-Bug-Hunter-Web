@@ -1,0 +1,114 @@
+{
+  "app": "shop",
+  "name": "Demo Supply Co.",
+  "version": 1,
+  "note": "What a complete, correct understanding of the demo shop contains. Later phases score the twin, journeys and predictions against this file. Items marked feature are present only when that feature switch is on.",
+  "roles": [
+    { "id": "visitor", "name": "Visitor", "signIn": "none", "secrets": {} },
+    { "id": "shopper", "name": "Shopper", "signIn": "POST /api/login (X-Sim-Session header)", "secrets": { "email": "shopper01@shop.demo", "password": "Shop123!" } },
+    { "id": "staff", "name": "Staff", "signIn": "POST /api/login (X-Sim-Session header)", "secrets": { "email": "staff@shop.demo", "password": "Staff123!" } }
+  ],
+  "features": [
+    { "id": "browse", "name": "Browse and filter products", "roles": ["visitor", "shopper", "staff"], "pages": ["#/", "#/product/{id}"], "endpoints": ["GET /api/products"], "stories": ["DEMO-128"] },
+    { "id": "search", "name": "Search products", "roles": ["visitor", "shopper", "staff"], "pages": ["#/?q="], "endpoints": ["GET /api/products?q="], "stories": ["DEMO-124"] },
+    { "id": "account", "name": "Register, sign in, sign out", "roles": ["visitor", "shopper", "staff"], "pages": ["#/login", "#/register"], "endpoints": ["POST /api/register", "POST /api/login", "POST /api/logout", "GET /api/me"], "stories": [] },
+    { "id": "cart", "name": "Manage the cart", "roles": ["shopper"], "pages": ["#/cart"], "endpoints": ["GET /api/cart", "POST /api/cart/items", "PUT /api/cart/items/{id}", "DELETE /api/cart/items/{id}"], "stories": ["DEMO-121", "DEMO-123", "DEMO-128"] },
+    { "id": "coupons", "name": "Apply coupons", "roles": ["shopper"], "pages": ["#/cart"], "endpoints": ["POST /api/cart/coupon", "DELETE /api/cart/coupon"], "stories": ["DEMO-121", "DEMO-122"] },
+    { "id": "checkout", "name": "Check out", "roles": ["shopper"], "pages": ["#/checkout"], "endpoints": ["GET /api/checkout/options", "POST /api/checkout"], "stories": ["DEMO-121", "DEMO-123", "DEMO-125"] },
+    { "id": "orders", "name": "See my orders", "roles": ["shopper"], "pages": ["#/orders", "#/order/{id}"], "endpoints": ["GET /api/orders", "GET /api/orders/{id}"], "stories": [] },
+    { "id": "cancel-order", "name": "Cancel an order", "roles": ["shopper"], "pages": ["#/order/{id}"], "endpoints": ["POST /api/orders/{id}/cancel"], "stories": ["DEMO-126"] },
+    { "id": "order-desk", "name": "Order desk: see all orders, ship and deliver", "roles": ["staff"], "pages": ["#/staff"], "endpoints": ["GET /api/staff/orders", "POST /api/staff/orders/{id}/status"], "stories": ["DEMO-127"] },
+    { "id": "gift-wrap", "name": "Gift wrap at checkout", "feature": "gift-wrap", "roles": ["shopper"], "pages": ["#/checkout"], "endpoints": ["GET /api/checkout/options", "POST /api/checkout"], "stories": ["DEMO-121"] }
+  ],
+  "entities": [
+    { "name": "Product", "fields": ["id", "name", "price", "category", "emoji", "rating", "description", "stock"], "endpoints": ["GET /api/products"] },
+    { "name": "Cart", "fields": ["items[].productId", "items[].name", "items[].price", "items[].qty", "items[].lineTotal", "coupons", "subtotal", "discount", "shipping", "tax", "total", "count"], "endpoints": ["GET /api/cart", "POST /api/cart/items", "PUT /api/cart/items/{id}", "DELETE /api/cart/items/{id}", "POST /api/cart/coupon", "DELETE /api/cart/coupon"] },
+    { "name": "Order", "fields": ["id", "email", "status", "createdAt", "lines", "subtotal", "discount", "shipping", "tax", "total", "shipTo", "cardLast4", "giftWrap (feature)", "giftWrapFee (feature)", "shippedAt", "deliveredAt", "cancelledAt"], "endpoints": ["POST /api/checkout", "GET /api/orders", "GET /api/orders/{id}", "POST /api/orders/{id}/cancel", "GET /api/staff/orders", "POST /api/staff/orders/{id}/status"] },
+    { "name": "Account", "fields": ["email", "name", "role"], "endpoints": ["POST /api/register", "POST /api/login", "GET /api/me"] },
+    { "name": "Coupon", "fields": ["code: SAVE10 (10% off), WELCOME5 ($5 off), FREESHIP (free shipping)"], "endpoints": ["POST /api/cart/coupon"] }
+  ],
+  "lifecycles": [
+    {
+      "entity": "Order", "field": "status", "initial": "Processing",
+      "transitions": [
+        { "from": "Processing", "to": "Shipped", "by": "staff", "endpoint": "POST /api/staff/orders/{id}/status" },
+        { "from": "Shipped", "to": "Delivered", "by": "staff", "endpoint": "POST /api/staff/orders/{id}/status" },
+        { "from": "Processing", "to": "Cancelled", "by": "shopper (own order)", "endpoint": "POST /api/orders/{id}/cancel", "effect": "items return to stock" }
+      ],
+      "forbidden": ["Shipped -> Cancelled", "Delivered -> Cancelled", "Processing -> Delivered", "Cancelled -> any"]
+    }
+  ],
+  "endpoints": [
+    { "method": "GET", "path": "/api/products", "roles": ["visitor", "shopper", "staff"] },
+    { "method": "POST", "path": "/api/register", "roles": ["visitor", "shopper", "staff"] },
+    { "method": "POST", "path": "/api/login", "roles": ["visitor", "shopper", "staff"] },
+    { "method": "POST", "path": "/api/logout", "roles": ["shopper", "staff"] },
+    { "method": "GET", "path": "/api/me", "roles": ["shopper", "staff"] },
+    { "method": "GET", "path": "/api/cart", "roles": ["shopper", "staff"] },
+    { "method": "POST", "path": "/api/cart/items", "roles": ["shopper", "staff"] },
+    { "method": "PUT", "path": "/api/cart/items/{id}", "roles": ["shopper", "staff"] },
+    { "method": "DELETE", "path": "/api/cart/items/{id}", "roles": ["shopper", "staff"] },
+    { "method": "POST", "path": "/api/cart/coupon", "roles": ["shopper", "staff"] },
+    { "method": "DELETE", "path": "/api/cart/coupon", "roles": ["shopper", "staff"] },
+    { "method": "GET", "path": "/api/checkout/options", "roles": ["visitor", "shopper", "staff"] },
+    { "method": "POST", "path": "/api/checkout", "roles": ["shopper", "staff"] },
+    { "method": "GET", "path": "/api/orders", "roles": ["shopper", "staff"], "note": "only the caller's orders" },
+    { "method": "GET", "path": "/api/orders/{id}", "roles": ["shopper", "staff"], "note": "own orders only" },
+    { "method": "POST", "path": "/api/orders/{id}/cancel", "roles": ["shopper", "staff"], "note": "own orders only" },
+    { "method": "GET", "path": "/api/staff/orders", "roles": ["staff"] },
+    { "method": "POST", "path": "/api/staff/orders/{id}/status", "roles": ["staff"] }
+  ],
+  "harnessEndpoints": ["GET /api/stories", "GET|PUT /api/admin/defects", "GET|PUT /api/test/features", "PUT /api/test/stories/{key}", "POST /api/test/reset", "POST /api/test/reset-all", "GET /openapi/v1.json"],
+  "permissions": [
+    { "endpoint": "GET /api/cart and all cart, checkout and order endpoints", "visitor": "deny (403)", "shopper": "allow", "staff": "allow" },
+    { "endpoint": "GET /api/staff/orders", "visitor": "deny (403)", "shopper": "deny (403)", "staff": "allow" },
+    { "endpoint": "POST /api/staff/orders/{id}/status", "visitor": "deny (403)", "shopper": "deny (403)", "staff": "allow" }
+  ],
+  "rules": [
+    { "id": "line-total", "story": "DEMO-121", "statement": "A line total is the price times the quantity.", "check": { "on": "GET /api/cart", "check": "all(items, lineTotal == price * qty)" } },
+    { "id": "subtotal", "story": "DEMO-121", "statement": "The subtotal is the sum of the line totals.", "check": { "on": "GET /api/cart", "check": "subtotal == sum(items, lineTotal)" } },
+    { "id": "discount-cap", "story": "DEMO-121", "statement": "A discount never exceeds the subtotal.", "check": { "on": "GET /api/cart", "check": "discount <= subtotal" } },
+    { "id": "tax", "story": "DEMO-121", "statement": "Tax is 8% of (subtotal - discount), rounded to the nearest cent.", "check": { "on": "GET /api/cart", "check": "tax == round((subtotal - discount) * 0.08, 2)" } },
+    { "id": "total", "story": "DEMO-121", "statement": "The total is subtotal - discount + shipping + tax.", "until": "sprint-2", "check": { "on": "GET /api/cart", "check": "total == subtotal - discount + shipping + tax" } },
+    { "id": "order-total-with-gift-wrap", "story": "DEMO-121", "since": "sprint-2", "statement": "An order's total is subtotal - discount + shipping + tax, plus gift wrap once per order when chosen.", "check": { "on": "POST /api/checkout", "check": "status >= 400 || total == subtotal - discount + shipping + tax + giftWrapFee" } },
+    { "id": "gift-wrap-once", "story": "DEMO-121", "since": "sprint-2", "statement": "Gift wrap costs $4.99 once per order.", "check": { "on": "POST /api/checkout", "check": "status >= 400 || giftWrap != true || giftWrapFee == 4.99" } },
+    { "id": "coupon-once", "story": "DEMO-122", "statement": "The cart never lists the same coupon twice; reapplying leaves the discount unchanged." },
+    { "id": "unknown-coupon", "story": "DEMO-122", "statement": "An unknown coupon code is rejected with a message." },
+    { "id": "qty-min", "story": "DEMO-123", "statement": "A quantity below 1 is rejected.", "check": { "on": "POST /api/cart/items", "check": "status >= 400 || request.qty >= 1" } },
+    { "id": "stock", "story": "DEMO-123", "statement": "A shopper cannot add or buy more of a product than is in stock." },
+    { "id": "search-case", "story": "DEMO-124", "statement": "Search returns every product whose name contains the term, ignoring letter case." },
+    { "id": "expired-card", "story": "DEMO-125", "statement": "A card whose expiry (MM/YY) is in the past is rejected." },
+    { "id": "luhn", "story": "DEMO-125", "statement": "A card number that fails the Luhn check is rejected." },
+    { "id": "cancel-only-processing", "story": "DEMO-126", "statement": "Only a Processing order can be cancelled.", "check": { "on": "POST /api/orders/{id}/cancel", "check": "status >= 400 || !exists(shippedAt) && !exists(deliveredAt)" } },
+    { "id": "cancel-restocks", "story": "DEMO-126", "statement": "Cancelling returns the items to stock.", "kind": "lifecycle" },
+    { "id": "staff-only", "story": "DEMO-127", "statement": "Only staff can see all orders and change an order's status.", "kind": "permission" },
+    { "id": "status-order", "story": "DEMO-127", "statement": "An order goes Processing, Shipped, Delivered, in that order.", "kind": "lifecycle" },
+    { "id": "listed-price", "story": "DEMO-128", "statement": "A product's price in the cart is its price in the product list.", "kind": "consistency" }
+  ],
+  "journeys": [
+    { "id": "find-a-product", "role": "visitor", "goal": "Find a product", "steps": ["Search for 'trail'", "Open Trail Running Shoes"], "outcome": "GET /api/products?q=trail lists it", "success": ["the product page shows its price and stock"] },
+    { "id": "buy-a-product", "role": "shopper", "goal": "Buy a product", "steps": ["Sign in", "Add a product to the cart", "Proceed to checkout", "Enter shipping and a valid card", "Place order"], "outcome": "POST /api/checkout returns 201", "success": ["the order is listed in Orders as Processing", "its total equals the cart total", "the cart is empty"] },
+    { "id": "buy-with-coupon", "role": "shopper", "goal": "Buy with a coupon", "steps": ["Sign in", "Add products worth over $50", "Apply SAVE10", "Check out"], "outcome": "POST /api/checkout returns 201", "success": ["the discount is 10% of the subtotal", "shipping is free over $50"] },
+    { "id": "cancel-an-order", "role": "shopper", "goal": "Cancel an order", "after": "buy-a-product", "steps": ["Open the order", "Cancel order"], "outcome": "POST /api/orders/{id}/cancel returns 200", "success": ["the order shows Cancelled", "the stock is back"] },
+    { "id": "ship-and-deliver", "role": "staff", "goal": "Ship and deliver an order", "after": "buy-a-product", "steps": ["Sign in as staff", "Open the order desk", "Mark shipped", "Mark delivered"], "outcome": "POST /api/staff/orders/{id}/status returns 200 twice", "success": ["the order shows Delivered", "the shopper can no longer cancel it"] },
+    { "id": "buy-with-gift-wrap", "role": "shopper", "feature": "gift-wrap", "goal": "Buy with gift wrap", "steps": ["Add two products", "Check out with gift wrap ticked"], "outcome": "POST /api/checkout returns 201 with giftWrap true", "success": ["giftWrapFee is 4.99", "the total includes it once"] }
+  ],
+  "seededDefects": [
+    { "id": "coupon-stacking", "kind": "calculation", "story": "DEMO-122", "rules": ["coupon-once", "discount-cap"], "detectableBy": ["oracle", "rule", "probe"] },
+    { "id": "expired-card", "kind": "validation", "story": "DEMO-125", "rules": ["expired-card"], "detectableBy": ["oracle", "probe"] },
+    { "id": "negative-qty", "kind": "validation", "story": "DEMO-123", "rules": ["qty-min"], "detectableBy": ["oracle", "rule", "probe"] },
+    { "id": "search-case", "kind": "behaviour", "story": "DEMO-124", "rules": ["search-case"], "detectableBy": ["oracle", "probe"] },
+    { "id": "no-stock-check", "kind": "validation", "story": "DEMO-123", "rules": ["stock"], "detectableBy": ["oracle", "probe"] },
+    { "id": "tax-rounding", "kind": "calculation", "story": "DEMO-121", "rules": ["tax"], "detectableBy": ["oracle", "rule"] },
+    { "id": "staff-open", "kind": "permission", "story": "DEMO-127", "rules": ["staff-only"], "detectableBy": ["rule", "prediction (per role)"], "needs": "a shopper calling the order desk endpoints" },
+    { "id": "cancel-shipped", "kind": "lifecycle", "story": "DEMO-126", "rules": ["cancel-only-processing"], "detectableBy": ["rule", "prediction"], "needs": "both roles: staff ships, the shopper cancels (or the seeded delivered order ORD-1001)" },
+    { "id": "listing-price-stale", "kind": "consistency", "story": "DEMO-128", "rules": ["listed-price"], "detectableBy": ["prediction (cross-endpoint)"] },
+    { "id": "gift-wrap-per-item", "kind": "calculation", "story": "DEMO-121", "feature": "gift-wrap", "rules": ["gift-wrap-once"], "detectableBy": ["rule"] }
+  ],
+  "unseededBugs": [
+    { "id": "fractional-qty", "statement": "A fractional quantity (qty 0.5) returns HTTP 500.", "foundBy": "built-in server-error oracle" }
+  ],
+  "knownOracleGaps": [
+    { "feature": "gift-wrap", "statement": "The built-in total oracle does not know the gift-wrap fee, so with the feature on it reports orders with gift wrap as not adding up. Only knowledge from the changed story (DEMO-121 v2) can correct this." }
+  ]
+}

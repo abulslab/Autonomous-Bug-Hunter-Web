@@ -1,0 +1,88 @@
+{
+  "app": "hotel",
+  "name": "Demo Hotel",
+  "version": 1,
+  "note": "What a complete, correct understanding of Demo Hotel contains. Later phases score the twin, journeys and predictions against this file. Items marked feature are present only when that feature switch is on.",
+  "roles": [
+    { "id": "guest", "name": "Guest", "signIn": "none; a guest is the browser tab (X-Guest header)", "secrets": {} },
+    { "id": "front-desk", "name": "Front desk", "signIn": "POST /api/staff/login", "secrets": { "email": "desk@hotel.demo", "password": "Desk123!" } }
+  ],
+  "features": [
+    { "id": "search-rooms", "name": "Search rooms", "roles": ["guest"], "pages": ["#/"], "endpoints": ["GET /api/rooms"], "stories": ["HOTEL-2"] },
+    { "id": "book-stay", "name": "Book a stay", "roles": ["guest"], "pages": ["#/book/{roomId}"], "endpoints": ["POST /api/bookings"], "stories": ["HOTEL-1", "HOTEL-2", "HOTEL-3", "HOTEL-6"] },
+    { "id": "my-bookings", "name": "See my bookings", "roles": ["guest"], "pages": ["#/bookings"], "endpoints": ["GET /api/bookings"], "stories": [] },
+    { "id": "cancel-booking", "name": "Cancel a booking", "roles": ["guest"], "pages": ["#/bookings"], "endpoints": ["POST /api/bookings/{id}/cancel"], "stories": ["HOTEL-4"] },
+    { "id": "desk-sign-in", "name": "Front-desk sign-in", "roles": ["front-desk"], "pages": ["#/desk"], "endpoints": ["POST /api/staff/login", "POST /api/staff/logout", "GET /api/staff/me"], "stories": ["HOTEL-5"] },
+    { "id": "desk-bookings", "name": "See all bookings", "roles": ["front-desk"], "pages": ["#/desk"], "endpoints": ["GET /api/staff/bookings"], "stories": ["HOTEL-5"] },
+    { "id": "check-in-out", "name": "Check guests in and out", "roles": ["front-desk"], "pages": ["#/desk"], "endpoints": ["POST /api/staff/bookings/{id}/checkin", "POST /api/staff/bookings/{id}/checkout"], "stories": ["HOTEL-5"] },
+    { "id": "breakfast", "name": "Breakfast add-on", "feature": "breakfast", "roles": ["guest"], "pages": ["#/book/{roomId}"], "endpoints": ["GET /api/rooms", "POST /api/bookings"], "stories": ["HOTEL-3"] }
+  ],
+  "entities": [
+    { "name": "Room", "fields": ["id", "name", "rate", "maxGuests", "description", "breakfastRate (feature breakfast)"], "endpoints": ["GET /api/rooms"] },
+    { "name": "Booking", "fields": ["id", "roomId", "roomName", "checkIn", "checkOut", "nights", "rate", "guests", "maxGuests", "breakfast (feature)", "breakfastTotal (feature)", "total", "name", "email", "status", "createdAt", "checkedInAt", "checkedOutAt", "cancelledAt"], "endpoints": ["POST /api/bookings", "GET /api/bookings", "POST /api/bookings/{id}/cancel", "GET /api/staff/bookings", "POST /api/staff/bookings/{id}/checkin", "POST /api/staff/bookings/{id}/checkout"] },
+    { "name": "Front-desk session", "fields": ["token", "name"], "endpoints": ["POST /api/staff/login"] }
+  ],
+  "lifecycles": [
+    {
+      "entity": "Booking", "field": "status", "initial": "Confirmed",
+      "transitions": [
+        { "from": "Confirmed", "to": "CheckedIn", "by": "front-desk", "endpoint": "POST /api/staff/bookings/{id}/checkin" },
+        { "from": "CheckedIn", "to": "CheckedOut", "by": "front-desk", "endpoint": "POST /api/staff/bookings/{id}/checkout" },
+        { "from": "Confirmed", "to": "Cancelled", "by": "guest (own booking)", "endpoint": "POST /api/bookings/{id}/cancel" }
+      ],
+      "forbidden": ["CheckedIn -> Cancelled", "CheckedOut -> Cancelled", "Confirmed -> CheckedOut", "Cancelled -> any"]
+    }
+  ],
+  "endpoints": [
+    { "method": "GET", "path": "/api/rooms", "roles": ["guest", "front-desk"] },
+    { "method": "POST", "path": "/api/bookings", "roles": ["guest", "front-desk"], "requires": "X-Guest header", "note": "any browser books as a guest, the front desk's included" },
+    { "method": "GET", "path": "/api/bookings", "roles": ["guest", "front-desk"], "note": "only the caller's (browser's) bookings" },
+    { "method": "POST", "path": "/api/bookings/{id}/cancel", "roles": ["guest", "front-desk"], "note": "own (browser's) bookings only" },
+    { "method": "POST", "path": "/api/staff/login", "roles": ["front-desk"] },
+    { "method": "POST", "path": "/api/staff/logout", "roles": ["front-desk"] },
+    { "method": "GET", "path": "/api/staff/me", "roles": ["front-desk"] },
+    { "method": "GET", "path": "/api/staff/bookings", "roles": ["front-desk"] },
+    { "method": "POST", "path": "/api/staff/bookings/{id}/checkin", "roles": ["front-desk"] },
+    { "method": "POST", "path": "/api/staff/bookings/{id}/checkout", "roles": ["front-desk"] }
+  ],
+  "harnessEndpoints": ["GET /api/stories", "GET|PUT /api/admin/defects", "GET|PUT /api/test/features", "PUT /api/test/stories/{key}", "POST /api/test/reset", "POST /api/test/reset-all", "GET /openapi/v1.json"],
+  "permissions": [
+    { "endpoint": "GET /api/staff/bookings", "guest": "deny (401)", "front-desk": "allow" },
+    { "endpoint": "POST /api/staff/bookings/{id}/checkin", "guest": "deny (401)", "front-desk": "allow" },
+    { "endpoint": "POST /api/staff/bookings/{id}/checkout", "guest": "deny (401)", "front-desk": "allow" },
+    { "endpoint": "POST /api/bookings/{id}/cancel", "guest": "allow for own bookings; others 404", "front-desk": "not offered" }
+  ],
+  "rules": [
+    { "id": "checkin-not-past", "story": "HOTEL-1", "statement": "A booking's check-in is today or later.", "check": { "on": "POST /api/bookings", "check": "status >= 400 || date(checkIn) >= today()" } },
+    { "id": "at-least-one-night", "story": "HOTEL-1", "statement": "Check-out is after check-in; a stay is at least one night.", "check": { "on": "POST /api/bookings", "check": "status >= 400 || nights >= 1" } },
+    { "id": "capacity", "story": "HOTEL-2", "statement": "Guests are between 1 and the room's maximum.", "check": { "on": "POST /api/bookings", "check": "status >= 400 || guests >= 1 && guests <= maxGuests" } },
+    { "id": "price", "story": "HOTEL-3", "statement": "The total is nights times the nightly rate.", "until": "sprint-2", "check": { "on": "POST /api/bookings", "check": "status >= 400 || total == nights * rate" } },
+    { "id": "price-with-breakfast", "story": "HOTEL-3", "since": "sprint-2", "statement": "The total is nights times the nightly rate, plus breakfast at its rate per guest per night when chosen.", "check": { "on": "POST /api/bookings", "check": "status >= 400 || total == nights * rate + breakfastTotal" } },
+    { "id": "breakfast-per-night", "story": "HOTEL-3", "since": "sprint-2", "statement": "Breakfast costs its rate per guest per night.", "check": { "on": "POST /api/bookings", "check": "status >= 400 || breakfast != true || breakfastTotal == nights * guests * 15" } },
+    { "id": "cancel-only-confirmed", "story": "HOTEL-4", "statement": "Only a confirmed booking can be cancelled.", "check": { "on": "POST /api/bookings/{id}/cancel", "check": "status >= 400 || !exists(checkedInAt)" } },
+    { "id": "cancelled-shows", "story": "HOTEL-4", "statement": "A cancelled booking shows as Cancelled.", "check": { "on": "POST /api/bookings/{id}/cancel", "check": "status >= 400 || status == 'Cancelled'" }, "note": "the HTTP status and the booking status share a name; the rule language reads the HTTP code as status" },
+    { "id": "desk-needs-sign-in", "story": "HOTEL-5", "statement": "Front-desk endpoints answer only for a signed-in front desk.", "kind": "permission" },
+    { "id": "checkin-before-checkout", "story": "HOTEL-5", "statement": "A guest is checked in before being checked out.", "kind": "lifecycle" },
+    { "id": "quoted-rate", "story": "HOTEL-6", "statement": "The booked rate equals the room's rate in the room list.", "kind": "consistency" }
+  ],
+  "journeys": [
+    { "id": "book-a-stay", "role": "guest", "goal": "Book a stay", "steps": ["Open the home page", "Search with valid dates and guests", "Choose a room", "Enter name and email", "Confirm"], "outcome": "POST /api/bookings returns 201", "success": ["the booking is listed in My bookings", "its total is nights times the rate", "its status is Confirmed"] },
+    { "id": "cancel-a-booking", "role": "guest", "goal": "Cancel a booking", "after": "book-a-stay", "steps": ["Open My bookings", "Cancel the booking"], "outcome": "POST /api/bookings/{id}/cancel returns 200", "success": ["the booking shows as Cancelled", "it has no Cancel button"] },
+    { "id": "check-in-a-guest", "role": "front-desk", "goal": "Check a guest in", "steps": ["Sign in to the front desk", "Find a confirmed booking", "Check in"], "outcome": "POST /api/staff/bookings/{id}/checkin returns 200", "success": ["the booking shows as CheckedIn"] },
+    { "id": "check-out-a-guest", "role": "front-desk", "goal": "Check a guest out", "after": "check-in-a-guest", "steps": ["Find the checked-in booking", "Check out"], "outcome": "POST /api/staff/bookings/{id}/checkout returns 200", "success": ["the booking shows as CheckedOut"] },
+    { "id": "book-with-breakfast", "role": "guest", "feature": "breakfast", "goal": "Book a stay with breakfast", "steps": ["Choose a room", "Tick Add breakfast", "Confirm"], "outcome": "POST /api/bookings returns 201 with breakfast true", "success": ["breakfastTotal is nights x guests x 15", "total includes it"] }
+  ],
+  "seededDefects": [
+    { "id": "past-checkin", "kind": "validation", "story": "HOTEL-1", "rules": ["checkin-not-past"], "detectableBy": ["rule", "probe"] },
+    { "id": "checkout-before-checkin", "kind": "validation", "story": "HOTEL-1", "rules": ["at-least-one-night"], "detectableBy": ["rule", "probe"] },
+    { "id": "over-capacity", "kind": "validation", "story": "HOTEL-2", "rules": ["capacity"], "detectableBy": ["rule", "probe"] },
+    { "id": "wrong-total", "kind": "calculation", "story": "HOTEL-3", "rules": ["price", "price-with-breakfast"], "detectableBy": ["rule"] },
+    { "id": "desk-open", "kind": "permission", "story": "HOTEL-5", "rules": ["desk-needs-sign-in"], "detectableBy": ["rule", "probe (no session)", "prediction"] },
+    { "id": "cancel-after-checkin", "kind": "lifecycle", "story": "HOTEL-4", "rules": ["cancel-only-confirmed"], "detectableBy": ["rule", "prediction"], "needs": "both roles: the front desk checks in, the guest cancels" },
+    { "id": "quote-mismatch", "kind": "consistency", "story": "HOTEL-6", "rules": ["quoted-rate"], "detectableBy": ["prediction (cross-endpoint)"] },
+    { "id": "breakfast-once", "kind": "calculation", "story": "HOTEL-3", "feature": "breakfast", "rules": ["breakfast-per-night"], "detectableBy": ["rule"] }
+  ],
+  "unseededBugs": [
+    { "id": "email-validation", "statement": "A booking accepts an email such as john.doe@.com (only an @ is checked).", "foundBy": "built-in invalid-input oracle" }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "id": "sprint-2",
+  "app": "shop",
+  "description": "One sprint later: gift wrap ships (story DEMO-121 changes, with a bug in the new fee), an unrelated regression appears in listed prices, and the sprint-1 tax rounding bug is fixed. Two sprint-1 bugs are still open.",
+  "baseline": {
+    "note": "The state for run 1. Every switch not listed is off; stories are at version 1.",
+    "defects": { "tax-rounding": true, "negative-qty": true, "staff-open": true },
+    "features": {}
+  },
+  "changes": [
+    {
+      "kind": "story", "key": "DEMO-121", "why": "Gift wrap at checkout",
+      "title": "Cart and order totals are always correct",
+      "criteria": "A line total is the price times the quantity.\nThe subtotal is the sum of the line totals.\nA discount never exceeds the subtotal.\nTax is 8% of (subtotal - discount), rounded to the nearest cent.\nThe total is subtotal - discount + shipping + tax.\nGift wrap costs $4.99 once per order; when chosen, the order total includes it."
+    },
+    { "kind": "feature", "id": "gift-wrap", "on": true, "why": "Gift wrap ships" },
+    { "kind": "defect", "id": "gift-wrap-per-item", "on": true, "why": "The new feature ships with a fee bug" },
+    { "kind": "defect", "id": "listing-price-stale", "on": true, "why": "A regression in an area no story touched" },
+    { "kind": "defect", "id": "tax-rounding", "on": false, "why": "The sprint-1 bug is fixed" }
+  ],
+  "expect": {
+    "retestFirst": ["DEMO-121"],
+    "newInChangedStory": ["gift-wrap-per-item"],
+    "regressed": ["listing-price-stale"],
+    "fixed": ["tax-rounding"],
+    "stillOpen": ["negative-qty", "staff-open"],
+    "newSurface": ["GET /api/checkout/options giftWrapPrice", "POST /api/checkout request.giftWrap", "order fields giftWrap and giftWrapFee", "the Gift wrap option at checkout"],
+    "rulesToRewrite": ["total -> order-total-with-gift-wrap", "new: gift-wrap-once"],
+    "knownOracleGaps": ["total-mismatch on orders with gift wrap: the built-in total oracle does not know the fee; the changed story must correct the expectation instead of a false positive being reported"],
+    "noNewFalsePositives": true
+  }
+}

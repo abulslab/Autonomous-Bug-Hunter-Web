@@ -1,0 +1,28 @@
+# Example: run the Bug Hunter release gate after a deploy to staging. Copy into .github/workflows/ of the application's
+# repository and adjust. It assumes a Bug Hunter API reachable from the runner (BUGHUNTER_API) with the project
+# already set up (environments, roles and their secrets, Jira and Confluence sources).
+name: Bug Hunter release gate
+
+on:
+  workflow_run:
+    workflows: ["Deploy to staging"]
+    types: [completed]
+  workflow_dispatch:
+
+jobs:
+  gate:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - name: Autonomous Bug Hunter Release Gate
+        uses: abulslab/Autonomous-Bug-Hunter-Web@main
+        with:
+          api-url: ${{ vars.BUGHUNTER_API }}
+          api-key: ${{ secrets.BUGHUNTER_API_KEY }}
+          project: ${{ vars.BUGHUNTER_PROJECT }}
+          environment: staging
+          steps: 60
+          out: readiness.md
+          publish: true
+

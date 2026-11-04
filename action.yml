@@ -1,0 +1,101 @@
+name: "Autonomous Bug Hunter Release Gate"
+description: "AI proposes, deterministic engine verifies. Autonomous functional bug hunting, 2x model-free replays, and release readiness gating for CI/CD."
+author: "abulslab"
+
+inputs:
+  api-url:
+    description: "Base URL of the Bug Hunter API (e.g. http://localhost:5280 or https://bughunter.internal)"
+    required: false
+    default: "http://localhost:5280"
+  api-key:
+    description: "API key for authentication with Bug Hunter API (sent as x-api-key)"
+    required: false
+    default: ""
+  project:
+    description: "Project ID in Bug Hunter (e.g. hotel, shop, or custom project ID)"
+    required: true
+  environment:
+    description: "Target environment name configured in the project (e.g. staging, local, prod-canary)"
+    required: false
+    default: "local"
+  steps:
+    description: "Maximum exploration steps per hunt"
+    required: false
+    default: "60"
+  model:
+    description: "Model connection identifier, as provider:model, from the providers configured on the Bug Hunter API; empty runs the no-AI gate"
+    required: false
+    default: ""
+  strict:
+    description: "When true, fails the gate on 'at-risk' verdict in addition to 'not-ready'"
+    required: false
+    default: "false"
+  survey:
+    description: "When true, forces a survey of all project roles regardless of whether stories changed"
+    required: false
+    default: "false"
+  publish:
+    description: "When true, automatically publishes the release readiness report to Confluence"
+    required: false
+    default: "false"
+  out:
+    description: "File path to save the generated Markdown release readiness report"
+    required: false
+    default: "readiness.md"
+
+outputs:
+  verdict:
+    description: "Release readiness verdict: ready, at-risk, or not-ready"
+    value: ${{ steps.gate.outputs.verdict }}
+  report-file:
+    description: "Path to the written Markdown readiness report"
+    value: ${{ inputs.out }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    - name: Run Bug Hunter Release Gate
+      id: gate
+      shell: bash
+      env:
+        API: ${{ inputs.api-url }}
+        BUGHUNTER_API_KEY: ${{ inputs.api-key }}
+      run: |
+        ARGS=(--project "${{ inputs.project }}" --env "${{ inputs.environment }}" --steps "${{ inputs.steps }}" --out "${{ inputs.out }}")
+        
+        if [ -n "${{ inputs.model }}" ]; then
+          ARGS+=(--model "${{ inputs.model }}")
+        fi
+        
+        if [ "${{ inputs.strict }}" = "true" ]; then
+          ARGS+=(--strict)
+        fi
+        
+        if [ "${{ inputs.survey }}" = "true" ]; then
+          ARGS+=(--survey)
+        fi
+        
+        if [ "${{ inputs.publish }}" = "true" ]; then
+          ARGS+=(--publish)
+        fi
+        
+        node "${{ github.action_path }}/scripts/ci-gate.mjs" "${ARGS[@]}"
+        
+        # Extract verdict from generated markdown report if available
+        if [ -f "${{ inputs.out }}" ]; then
+          VERDICT=$(grep -m 1 -E "\*\*(Ready|At risk|Not ready)\*\*" "${{ inputs.out }}" | sed -E 's/.*\*\*(Ready|At risk|Not ready)\*\*.*/\1/' | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
+          echo "verdict=${VERDICT}" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Upload Release Readiness Report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: bug-hunter-readiness-${{ inputs.project }}
+        path: ${{ inputs.out }}
+        if-no-files-found: ignore

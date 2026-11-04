@@ -1,0 +1,31 @@
+{
+  "id": "sprint-2",
+  "app": "hotel",
+  "description": "One sprint later: breakfast ships (story HOTEL-3 changes, with a bug in the new pricing), an unrelated regression appears in the quoted rate, and the last-night pricing bug from sprint 1 is fixed. Two sprint-1 bugs are still open.",
+  "baseline": {
+    "note": "The state for run 1. Every switch not listed is off; stories are at version 1.",
+    "defects": { "wrong-total": true, "over-capacity": true, "desk-open": true },
+    "features": {}
+  },
+  "changes": [
+    {
+      "kind": "story", "key": "HOTEL-3", "why": "Breakfast add-on",
+      "title": "Correct price, including breakfast",
+      "criteria": "The total is the number of nights times the nightly rate.\nA guest can add breakfast, at the breakfast rate per guest per night.\nWhen breakfast is chosen, the total includes it."
+    },
+    { "kind": "feature", "id": "breakfast", "on": true, "why": "The breakfast add-on ships" },
+    { "kind": "defect", "id": "breakfast-once", "on": true, "why": "The new feature ships with a pricing bug" },
+    { "kind": "defect", "id": "quote-mismatch", "on": true, "why": "A regression in an area no story touched" },
+    { "kind": "defect", "id": "wrong-total", "on": false, "why": "The sprint-1 bug is fixed" }
+  ],
+  "expect": {
+    "retestFirst": ["HOTEL-3"],
+    "newInChangedStory": ["breakfast-once"],
+    "regressed": ["quote-mismatch"],
+    "fixed": ["wrong-total"],
+    "stillOpen": ["over-capacity", "desk-open"],
+    "newSurface": ["GET /api/rooms items[].breakfastRate", "POST /api/bookings request.breakfast", "booking fields breakfast and breakfastTotal", "the Add breakfast option on the booking form"],
+    "rulesToRewrite": ["price -> price-with-breakfast", "new: breakfast-per-night"],
+    "noNewFalsePositives": true
+  }
+}

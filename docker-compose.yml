@@ -1,0 +1,92 @@
+# The whole system with one command:
+#   docker compose up --build                                  # UI http://localhost:3100, API http://localhost:5280/docs
+#   STORAGE_PROVIDER=Postgres docker compose --profile postgres up --build                       # hunts in PostgreSQL
+#   OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317 docker compose --profile observability up --build # traces in Jaeger, :16686
+# Readiness (storage and browser worker): http://localhost:5280/readyz
+#
+# Model keys are passed through from your environment (GEMINI_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY).
+# Without a key, the Heuristic strategy still runs the full pipeline with no AI.
+
+name: bug-hunter
+
+# Ports are published on this machine only (127.0.0.1). To reach the stack from other machines, publish them
+# on another interface and set BUGHUNTER_API_KEY: without it the API is open to anyone who can reach it.
+services:
+  api:
+    build: { context: ., dockerfile: src/BugHunter.Api/Dockerfile }
+    ports: ["127.0.0.1:5280:5280"]
+    environment:
+      Hunter__WorkerUrl: http://worker:5299
+      Hunter__AutoStartWorker: "false"
+      Hunter__AllowPrivateTargets: "true"     # the demo shop is on the compose network
+      Hunter__DemoShopUrl: http://demo-shop:5290/
+      Hunter__DemoHotelUrl: http://demo-hotel:5291/
+      Simulators__Url: http://simulators:5292
+      Hunter__DemoShopKey: ${DEMO_SHOP_KEY:?Set DEMO_SHOP_KEY in .env: run node scripts/dev.mjs once, or see README}
+      Simulators__ApiToken: ${SIM_TOKEN:?Set SIM_TOKEN in .env: run node scripts/dev.mjs once, or see README}
+      Cors__Origins__0: http://localhost:3100
+      Storage__Provider: ${STORAGE_PROVIDER:-File}
+      ConnectionStrings__BugHunter: Host=postgres;Database=bughunter;Username=bughunter;Password=${POSTGRES_PASSWORD:-}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      BUGHUNTER_API_KEY: ${BUGHUNTER_API_KEY:-}
+    volumes: ["hunter-data:/data"]
+    depends_on: [worker, demo-shop, demo-hotel, simulators]
+
+  worker:
+    build: { context: src/browser-worker }
+    environment:
+      HOST: 0.0.0.0
+      PORT: "5299"
+      WORKER_TOKEN: ${WORKER_TOKEN:-}
+    shm_size: 1gb   # Chromium needs more than Docker's default shared memory
+
+  demo-shop:
+    build: { context: ., dockerfile: src/DemoShop/Dockerfile }
+    ports: ["127.0.0.1:5290:5290"]
+    environment:
+      AdminKey: ${DEMO_SHOP_KEY:?Set DEMO_SHOP_KEY in .env: run node scripts/dev.mjs once, or see README}
+
+  simulators:
+    build: { context: ., dockerfile: src/Simulators/Dockerfile }
+    ports: ["127.0.0.1:5292:5292"]
+    environment:
+      Simulators__HarnessKey: ${DEMO_SHOP_KEY:?Set DEMO_SHOP_KEY in .env: run node scripts/dev.mjs once, or see README}
+      Simulators__ApiToken: ${SIM_TOKEN:?Set SIM_TOKEN in .env: run node scripts/dev.mjs once, or see README}
+
+  demo-hotel:
+    build: { context: ., dockerfile: src/DemoHotel/Dockerfile }
+    ports: ["127.0.0.1:5291:5291"]
+    environment:
+      AdminKey: ${DEMO_SHOP_KEY:?Set DEMO_SHOP_KEY in .env: run node scripts/dev.mjs once, or see README}
+
+  web:
+    build:
+      context: .
+      dockerfile: src/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:5280
+    ports: ["127.0.0.1:3100:3100"]
+    depends_on: [api]
+
+  postgres:
+    profiles: [postgres]
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: bughunter
+      POSTGRES_USER: bughunter
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}   # required with --profile postgres; set it in .env
+    volumes: ["postgres-data:/var/lib/postgresql/data"]
+
+  jaeger:
+    profiles: [observability]
+    image: jaegertracing/all-in-one:1.62.0
+    ports: ["127.0.0.1:16686:16686"]
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+
+volumes:
+  hunter-data:
+  postgres-data:
